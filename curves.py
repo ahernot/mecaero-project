@@ -1,6 +1,7 @@
 import os
+import numpy as np
 import pandas as pd
-from courbes_cx_cy import OUTPUT_PATH
+from courbes_cx_cy import INPUT_PATH, OUTPUT_PATH
 
 from preferences import *
 
@@ -16,6 +17,9 @@ class Curves: # drag/lift curves according to time, angle, reynolds
         self.reynolds = reynolds
         self.angle = angle
 
+        self.drag_avg = np.average(self.drag)
+        self.lift_avg = np.average(self.lift)
+
         self.repr_short = f'plots-reynolds{int(self.reynolds)}-angle{self.angle}'
 
     def __repr__ (self):
@@ -23,7 +27,9 @@ class Curves: # drag/lift curves according to time, angle, reynolds
 
     def plot (self, **kwargs):
         save = kwargs.get('save', False)
-        path = kwargs.get('path', os.path.join(OUTPUT_PATH, self.repr_short))
+        path = kwargs.get('path', None)
+        if save: path = os.path.join(OUTPUT_PATH, self.repr_short)
+        if path: save = True
         show = kwargs.get('show', True)
 
         # plot
@@ -32,7 +38,7 @@ class Curves: # drag/lift curves according to time, angle, reynolds
         if save:
             try: os.makedirs(path)
             except: pass
-            # savefig
+            # TODO: savefig
 
 
 
@@ -40,11 +46,11 @@ class Curves: # drag/lift curves according to time, angle, reynolds
 class Data:
 
     def __init__ (self):
-        self.curves = list()
-        self.curves_reynolds = dict()  # Curves, ordered by Reynolds number
+        self.__curves_list = list()
+        self.__curves_dict = dict()  # Curves, ordered by Reynolds number
 
     def load (self, dirpath=INPUT_FOLDER):
-        with os.scandir(dirpath) as files: # add a loop for reynolds folders
+        with os.scandir(dirpath) as files: # add a loop for Reynolds folders
 
             for file in files:
                 name, ext = os.path.splitext(file.name)
@@ -57,8 +63,11 @@ class Data:
                 # Generate Curves object
                 curves = Curves(df, reynolds=reynolds, angle=angle)
                 
-                # Add to self.curves and self.curves_reynolds
-                self.curves .append(curves)
-                if reynolds not in self.curves_reynolds.keys: self.curves_reynolds[reynolds] = dict()
-                self.curves_reynolds [reynolds][angle] = curves
+                # Add to self.__curves_list and self.__curves_dict
+                self.__curves_list .append(curves)
+                if reynolds not in self.__curves_dict.keys: self.__curves_dict[reynolds] = dict()
+                self.__curves_dict [reynolds][angle] = curves
 
+    def plot (self):
+        for curves in self.__curves_list:
+            curves.plot(save=True)  # Individual plot
