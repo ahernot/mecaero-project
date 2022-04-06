@@ -31,7 +31,7 @@ class Curves: # drag/lift curves according to time, angle, reynolds
         save = kwargs.get('save', False)
         path = kwargs.get('path', None)
         if path: save = True
-        show = kwargs.get('show', True)
+        show = kwargs.get(True if save == False else False)
 
         # Lift plot
         plt.figure(figsize=figsize)
@@ -66,7 +66,11 @@ class Data:
         self.__curves_list = list()
         self.__curves_dict = dict()  # Curves, ordered by Reynolds number
 
+
     def load (self, dirpath=INPUT_PATH):
+        """
+        Load data
+        """
         with os.scandir(dirpath) as files: # add a loop for Reynolds folders
 
             for file in files:
@@ -85,31 +89,70 @@ class Data:
                 if reynolds not in self.__curves_dict.keys(): self.__curves_dict[reynolds] = dict()
                 self.__curves_dict [reynolds][angle] = curves
 
-    def plot_all (self, **kwargs):
+
+    def plot_all_individual (self, **kwargs):
+        """
+        Plot all the individual lift and drag curves
+        """
         for curves in self.__curves_list:
             curves.plot_individual(**kwargs)  # Individual plot
 
-    def plot_drags (self, **kwargs):
+
+    def plot_all_temporal (self, reynolds: float or int, **kwargs):
+        """
+        Plot all the lifts (plot 1) and all the drags (plot 2) according to time, for a set Reynolds number
+        """
+        if reynolds not in self.__curves_dict.keys(): raise ValueError('Wrong Reynolds number')
 
         # Unpack kwargs
         figsize = kwargs.get('figsize', (20, 10))
         save = kwargs.get('save', False)
         path = kwargs.get('path', None)
         if path: save = True
-        show = kwargs.get('show', True)
+        show = kwargs.get(True if save == False else False)
 
+        # Lifts plot
         plt.figure(figsize=figsize)
-        for curves in self.__curves_list:
-        
+        for curves in self.__curves_dict[reynolds].values():
+            plt.plot(curves.time, curves.lift, label=curves.repr_short)
+        plt.xlabel('Time [s]')
+        plt.ylabel('Lift [N]')
+        plt.legend()
+        plt.title(f'Lifts for E={reynolds}')
+        if show: plt.show()
+        if save:
+            if not path: path = os.path.join(OUTPUT_PATH, f'_combined-reynolds{reynolds}/lifts-reynolds{reynolds}.jpg')
+            try: os.makedirs(path)
+            except: pass
+            plt.savefig(path, bbox_inches='tight')
+
+        # Drags plot
+        plt.figure(figsize=figsize)
+        for curves in self.__curves_dict[reynolds].values():
+            plt.plot(curves.time, curves.drag, label=curves.repr_short)
+        plt.xlabel('Time [s]')
+        plt.ylabel('Drag [N]')
+        plt.legend()
+        plt.title(f'Drags for E={reynolds}')
+        if show: plt.show()
+        if save:
+            if not path: path = os.path.join(OUTPUT_PATH, f'_combined-reynolds{reynolds}/drags-reynolds{reynolds}.jpg')
+            try: os.makedirs(path)
+            except: pass
+            plt.savefig(path, bbox_inches='tight')
+   
 
     def plot_avgs_angle (self, **kwargs):
+        """
+        Plot all the time-averaged lifts (plot 1) and drags (plot 2) according to angle
+        """ # FOR A SET REYNOLDS NB?
 
         # Unpack kwargs
         figsize = kwargs.get('figsize', (20, 10))
         save = kwargs.get('save', False)
         path = kwargs.get('path', None)
         if path: save = True
-        show = kwargs.get('show', True)
+        show = kwargs.get(True if save == False else False)
 
         # Unpack angles, lifts, drags
         angles, lifts, drags = list(), list(), list()
@@ -123,6 +166,7 @@ class Data:
         plt.scatter(angles, lifts)
         plt.xlabel('Angle [deg]')
         plt.ylabel('Lift [N]')
+        plt.title(f'Time-averaged lifts according to angle')
         if show: plt.show()
         if save:
             if not path: path = os.path.join(OUTPUT_PATH, '_avgs_angle/lift_angle.jpg')
@@ -135,9 +179,16 @@ class Data:
         plt.scatter(angles, drags)
         plt.xlabel('Angle [deg]')
         plt.ylabel('Drag [N]')
+        plt.title(f'Time-averaged drags according to angle')
         if show: plt.show()
         if save:
             if not path: path = os.path.join(OUTPUT_PATH, '_avgs_angle/drag_angle.jpg')
             try: os.makedirs(path)
             except: pass
-            plt.savefig(path, bbox_inches='tight')        
+            plt.savefig(path, bbox_inches='tight')
+
+
+"""
+goal = plot lift/angle and drag/angle for different NACA profiles
+goal = 
+"""
