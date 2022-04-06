@@ -1,1 +1,1 @@
-INPUT_FOLDER = 'input/'
+INPUT_PATH = 'input/'

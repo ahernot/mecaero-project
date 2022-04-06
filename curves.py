@@ -1,7 +1,8 @@
 import os
 import numpy as np
 import pandas as pd
-from courbes_cx_cy import INPUT_PATH, OUTPUT_PATH
+import matplotlib.pyplot as plt
+# from courbes_cx_cy import INPUT_PATH, OUTPUT_PATH
 
 from preferences import *
 
@@ -25,20 +26,36 @@ class Curves: # drag/lift curves according to time, angle, reynolds
     def __repr__ (self):
         return self.repr_short
 
-    def plot (self, **kwargs):
+    def plot_individual (self, **kwargs):
+        figsize = kwargs.get('figsize', (20, 10))
         save = kwargs.get('save', False)
         path = kwargs.get('path', None)
-        if save: path = os.path.join(OUTPUT_PATH, self.repr_short)
         if path: save = True
         show = kwargs.get('show', True)
 
-        # plot
-        # show
-
+        # Lift plot
+        plt.figure(figsize=figsize)
+        plt.plot(self.time, self.lift, label=self.repr_short)
+        plt.xlabel('Time [s]')
+        plt.ylabel('Lift [N]')
+        if show: plt.show()
         if save:
+            if not path: path = os.path.join(OUTPUT_PATH, f'{self.repr_short}/lift.jpg')
             try: os.makedirs(path)
             except: pass
-            # TODO: savefig
+            plt.savefig(path, bbox_inches='tight')
+
+        # Drag plot
+        plt.figure(figsize=figsize)
+        plt.plot(self.time, self.drag, label=self.repr_short)
+        plt.xlabel('Time [s]')
+        plt.ylabel('Drag [N]')
+        if show: plt.show()
+        if save:
+            if not path: path = os.path.join(OUTPUT_PATH, f'{self.repr_short}/drag.jpg')
+            try: os.makedirs(path)
+            except: pass
+            plt.savefig(path, bbox_inches='tight')    
 
 
 
@@ -49,7 +66,7 @@ class Data:
         self.__curves_list = list()
         self.__curves_dict = dict()  # Curves, ordered by Reynolds number
 
-    def load (self, dirpath=INPUT_FOLDER):
+    def load (self, dirpath=INPUT_PATH):
         with os.scandir(dirpath) as files: # add a loop for Reynolds folders
 
             for file in files:
@@ -65,9 +82,62 @@ class Data:
                 
                 # Add to self.__curves_list and self.__curves_dict
                 self.__curves_list .append(curves)
-                if reynolds not in self.__curves_dict.keys: self.__curves_dict[reynolds] = dict()
+                if reynolds not in self.__curves_dict.keys(): self.__curves_dict[reynolds] = dict()
                 self.__curves_dict [reynolds][angle] = curves
 
-    def plot (self):
+    def plot_all (self, **kwargs):
         for curves in self.__curves_list:
-            curves.plot(save=True)  # Individual plot
+            curves.plot_individual(**kwargs)  # Individual plot
+
+    def plot_drags (self, **kwargs):
+
+        # Unpack kwargs
+        figsize = kwargs.get('figsize', (20, 10))
+        save = kwargs.get('save', False)
+        path = kwargs.get('path', None)
+        if path: save = True
+        show = kwargs.get('show', True)
+
+        plt.figure(figsize=figsize)
+        for curves in self.__curves_list:
+        
+
+    def plot_avgs_angle (self, **kwargs):
+
+        # Unpack kwargs
+        figsize = kwargs.get('figsize', (20, 10))
+        save = kwargs.get('save', False)
+        path = kwargs.get('path', None)
+        if path: save = True
+        show = kwargs.get('show', True)
+
+        # Unpack angles, lifts, drags
+        angles, lifts, drags = list(), list(), list()
+        for curves in self.__curves_list:
+            angles.append(curves.angle)
+            lifts.append(curves.lift_avg)
+            drags.append(curves.drag_avg)
+
+        # Lifts plot
+        plt.figure(figsize=figsize)
+        plt.scatter(angles, lifts)
+        plt.xlabel('Angle [deg]')
+        plt.ylabel('Lift [N]')
+        if show: plt.show()
+        if save:
+            if not path: path = os.path.join(OUTPUT_PATH, '_avgs_angle/lift_angle.jpg')
+            try: os.makedirs(path)
+            except: pass
+            plt.savefig(path, bbox_inches='tight')
+
+        # Drags plot
+        plt.figure(figsize=figsize)
+        plt.scatter(angles, drags)
+        plt.xlabel('Angle [deg]')
+        plt.ylabel('Drag [N]')
+        if show: plt.show()
+        if save:
+            if not path: path = os.path.join(OUTPUT_PATH, '_avgs_angle/drag_angle.jpg')
+            try: os.makedirs(path)
+            except: pass
+            plt.savefig(path, bbox_inches='tight')        
