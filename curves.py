@@ -72,10 +72,10 @@ class Data:
         self.__curves_list = list()
         self.__curves_dict = dict()  # Curves, ordered by Reynolds number
 
-        self.__profiles = dict()
+        self.__airfoils = dict()
 
     def __repr__ (self):
-        return f'Data for E={self.__reynolds}\n\nAirfoils:' + '\n\t'.join(list(self.__profiles.keys()))
+        return f'Data for E={self.__reynolds}\n\nAirfoils:' + '\n\t'.join(list(self.__airfoils.keys()))
 
 
     def load (self, dirpath=INPUT_PATH):
@@ -91,10 +91,6 @@ class Data:
                 # Retrieve dataframe
                 df = pd.read_csv(file.path, sep='\t')
 
-                # Retrieve information
-                # angle = float(name.split('_')[-1])  # for RE50k and RE75k
-                # angle = float(name.split('_')[-1][1:])  # for RE25k
-
                 name_split = name.split('_')
                 for i, part in enumerate(name_split):
                     if part.lower() == 'naca':
@@ -105,9 +101,10 @@ class Data:
                         angle = float(part[1:])
 
                 # Fill dict of NACA profiles
-                if not airfoil in self.__profiles.keys(): self.__profiles [airfoil]['__angles__'] = list()
-                self.__profiles [airfoil][angle] = Curves(df, reynolds=self.__reynolds, angle=angle)
-                self.__profiles [airfoil]['__angles__'] .append(angle)
+                if not airfoil in self.__airfoils.keys(): self.__airfoils [airfoil] = dict()
+                if not '__angles__' in self.__airfoils[airfoil].keys(): self.__airfoils [airfoil]['__angles__'] = list()
+                self.__airfoils [airfoil][angle] = Curves(df, reynolds=self.__reynolds, angle=angle)
+                self.__airfoils [airfoil]['__angles__'] .append(angle)
                 
                 # Add to self.__curves_list and self.__curves_dict
                 # self.__curves_list .append(curves)
@@ -115,9 +112,12 @@ class Data:
                 # self.__curves_dict [reynolds][angle] = curves
 
 
-        # self.angles = list(self.__curves_dict[reynolds].keys())
-        # self.angles.sort()
-        # self.angles_nb = len(self.angles)
+        # Generate ordered keys dictionaries
+        self.__airfoils_list = list(self.__airfoils.keys())
+        self.__airfoils_list.sort()
+        for airfoil in self.__airfoils_list:
+            self.__airfoils [airfoil]['__angles__'] .sort()
+        
 
 
     def plot_all_individual (self, **kwargs):
@@ -131,108 +131,152 @@ class Data:
             curves.plot_individual(**kwargs)  # Individual plot
 
 
-    def plot_all_temporal (self, **kwargs):
-        """
-        Plot all the lifts (plot 1) and all the drags (plot 2) according to time, for a set Reynolds number
-        """
-        reynolds = REYNOLDS
-        # if reynolds not in self.__curves_dict.keys(): raise ValueError('Wrong Reynolds number')
+    def plot_comparison (self, **kwargs):
 
         # Unpack kwargs
-        figsize = kwargs.get('figsize', (20, 10))
+        figsize = kwargs.get('figsize', (30, 10))
         save = kwargs.get('save', False)
         path = kwargs.get('path', None)
         if path: save = True
         show = kwargs.get(True if save == False else False)
 
-        # Colormap
-        colormap = cm.plasma
-        colors_nb = min(colormap.N, self.angles_nb)
-        mapcolors = [colormap(int(x*colormap.N/self.angles_nb)) for x in range(colors_nb)]
+        # Init plot
+        fig, axs = plt.subplots(1, 2, figsize=figsize)
 
-        # Lifts plot for each generated angle
-        plt.figure(figsize=figsize)
-        for i, angle in enumerate(self.angles):
-            curves = self.__curves_dict[reynolds][angle]
-            plt.plot(curves.time, curves.lift, label=curves.repr_short, c=mapcolors[i])
-        plt.xlabel('Time [s]')
-        plt.ylabel('Lift [N]')
-        plt.legend()
-        plt.title(f'Lifts for E={reynolds}')
+        # Plot for different airfoils
+        for airfoil in self.__airfoils_list:
+
+            angles_list = self.__airfoils[airfoil]['__angles__']
+            lifts_list = [self.__airfoils[airfoil][angle].lift_avg for angle in angles_list]
+            drags_list = [self.__airfoils[airfoil][angle].drag_avg for angle in angles_list]
+
+            axs[0].plot(angles_list, lifts_list, label=airfoil)
+            axs[1].plot(angles_list, drags_list, label=airfoil)
+            axs[0].scatter(angles_list, lifts_list)
+            axs[1].scatter(angles_list, drags_list)
+        
+        axs[0].set_xlabel('Angle [deg]')
+        axs[0].set_ylabel('Lift [N]')
+        axs[1].set_xlabel('Angle [deg]')
+        axs[1].set_ylabel('Drag [N]')
+        axs[0].legend(loc="upper right")
+        axs[1].legend(loc="upper right")
+
+        axs[0].set_title(f'Lifts for E={self.__reynolds}')
+        axs[1].set_title(f'Drags for E={self.__reynolds}')
+
         if show: plt.show()
         if save:
-            if not path: path = os.path.join(OUTPUT_PATH, f'_combined-reynolds{reynolds}')
+            if not path: path = os.path.join(OUTPUT_PATH)
             try: os.makedirs(path)
             except: pass
-            savepath = os.path.join(path, f'lifts-reynolds{reynolds}.jpg')
+            savepath = os.path.join(path, f'combined_reynolds-{self.__reynolds}.jpg')
             plt.savefig(savepath, bbox_inches='tight')
 
-        # Drags plot
-        plt.figure(figsize=figsize)
-        for i, angle in enumerate(self.angles):
-            curves = self.__curves_dict[reynolds][angle]
-            plt.plot(curves.time, curves.drag, label=curves.repr_short, c=mapcolors[i])
-        plt.xlabel('Time [s]')
-        plt.ylabel('Drag [N]')
-        plt.legend()
-        plt.title(f'Drags for E={reynolds}')
-        if show: plt.show()
-        if save:
-            if not path: path = os.path.join(OUTPUT_PATH, f'_combined-reynolds{reynolds}')
-            try: os.makedirs(path)
-            except: pass
-            savepath = os.path.join(path, f'drags-reynolds{reynolds}.jpg')
-            plt.savefig(savepath, bbox_inches='tight')
+
+
+    # def plot_all_temporal (self, **kwargs):
+    #     """
+    #     Plot all the lifts (plot 1) and all the drags (plot 2) according to time, for a set Reynolds number
+    #     """
+    #     reynolds = REYNOLDS
+    #     # if reynolds not in self.__curves_dict.keys(): raise ValueError('Wrong Reynolds number')
+
+    #     # Unpack kwargs
+    #     figsize = kwargs.get('figsize', (20, 10))
+    #     save = kwargs.get('save', False)
+    #     path = kwargs.get('path', None)
+    #     if path: save = True
+    #     show = kwargs.get(True if save == False else False)
+
+    #     # Colormap
+    #     colormap = cm.plasma
+    #     colors_nb = min(colormap.N, self.angles_nb)
+    #     mapcolors = [colormap(int(x*colormap.N/self.angles_nb)) for x in range(colors_nb)]
+
+    #     # Lifts plot for each generated angle
+    #     plt.figure(figsize=figsize)
+    #     for i, angle in enumerate(self.angles):
+    #         curves = self.__curves_dict[reynolds][angle]
+    #         plt.plot(curves.time, curves.lift, label=curves.repr_short, c=mapcolors[i])
+    #     plt.xlabel('Time [s]')
+    #     plt.ylabel('Lift [N]')
+    #     plt.legend()
+    #     plt.title(f'Lifts for E={reynolds}')
+    #     if show: plt.show()
+    #     if save:
+    #         if not path: path = os.path.join(OUTPUT_PATH, f'_combined-reynolds{reynolds}')
+    #         try: os.makedirs(path)
+    #         except: pass
+    #         savepath = os.path.join(path, f'lifts-reynolds{reynolds}.jpg')
+    #         plt.savefig(savepath, bbox_inches='tight')
+
+    #     # Drags plot
+    #     plt.figure(figsize=figsize)
+    #     for i, angle in enumerate(self.angles):
+    #         curves = self.__curves_dict[reynolds][angle]
+    #         plt.plot(curves.time, curves.drag, label=curves.repr_short, c=mapcolors[i])
+    #     plt.xlabel('Time [s]')
+    #     plt.ylabel('Drag [N]')
+    #     plt.legend()
+    #     plt.title(f'Drags for E={reynolds}')
+    #     if show: plt.show()
+    #     if save:
+    #         if not path: path = os.path.join(OUTPUT_PATH, f'_combined-reynolds{reynolds}')
+    #         try: os.makedirs(path)
+    #         except: pass
+    #         savepath = os.path.join(path, f'drags-reynolds{reynolds}.jpg')
+    #         plt.savefig(savepath, bbox_inches='tight')
    
 
-    def plot_avgs_angle (self, **kwargs):
-        """
-        Plot all the time-averaged lifts (plot 1) and drags (plot 2) according to angle
-        """ # FOR A SET REYNOLDS NB?
+    # def plot_avgs_angle (self, **kwargs):
+    #     """
+    #     Plot all the time-averaged lifts (plot 1) and drags (plot 2) according to angle
+    #     """ # FOR A SET REYNOLDS NB?
 
-        reynolds = REYNOLDS
+    #     reynolds = REYNOLDS
 
-        # Unpack kwargs
-        figsize = kwargs.get('figsize', (20, 10))
-        save = kwargs.get('save', False)
-        path = kwargs.get('path', None)
-        if path: save = True
-        show = kwargs.get('show', True if save == False else False)
+    #     # Unpack kwargs
+    #     figsize = kwargs.get('figsize', (20, 10))
+    #     save = kwargs.get('save', False)
+    #     path = kwargs.get('path', None)
+    #     if path: save = True
+    #     show = kwargs.get('show', True if save == False else False)
 
-        # Unpack angles, lifts, drags
-        angles, lifts, drags = list(), list(), list()
-        for curves in self.__curves_list:
-            angles.append(curves.angle)
-            lifts.append(curves.lift_avg)
-            drags.append(curves.drag_avg)
+    #     # Unpack angles, lifts, drags
+    #     angles, lifts, drags = list(), list(), list()
+    #     for curves in self.__curves_list:
+    #         angles.append(curves.angle)
+    #         lifts.append(curves.lift_avg)
+    #         drags.append(curves.drag_avg)
 
-        # Lifts plot
-        plt.figure(figsize=figsize)
-        plt.scatter(angles, lifts)
-        plt.xlabel('Angle [deg]')
-        plt.ylabel('Lift [N]')
-        plt.title(f'Time-averaged lifts according to angle for E={reynolds}')
-        if show: plt.show()
-        if save:
-            if not path: path = os.path.join(OUTPUT_PATH, f'_avgs_angle-reynolds{reynolds}')
-            try: os.makedirs(path)
-            except: pass
-            savepath = os.path.join(path, f'lift_angle-reynolds{reynolds}.jpg')
-            plt.savefig(savepath, bbox_inches='tight')
+    #     # Lifts plot
+    #     plt.figure(figsize=figsize)
+    #     plt.scatter(angles, lifts)
+    #     plt.xlabel('Angle [deg]')
+    #     plt.ylabel('Lift [N]')
+    #     plt.title(f'Time-averaged lifts according to angle for E={reynolds}')
+    #     if show: plt.show()
+    #     if save:
+    #         if not path: path = os.path.join(OUTPUT_PATH, f'_avgs_angle-reynolds{reynolds}')
+    #         try: os.makedirs(path)
+    #         except: pass
+    #         savepath = os.path.join(path, f'lift_angle-reynolds{reynolds}.jpg')
+    #         plt.savefig(savepath, bbox_inches='tight')
 
-        # Drags plot
-        plt.figure(figsize=figsize)
-        plt.scatter(angles, drags)
-        plt.xlabel('Angle [deg]')
-        plt.ylabel('Drag [N]')
-        plt.title(f'Time-averaged drags according to angle for E={reynolds}')
-        if show: plt.show()
-        if save:
-            if not path: path = os.path.join(OUTPUT_PATH, f'_avgs_angle-reynolds{reynolds}')
-            try: os.makedirs(path)
-            except: pass
-            savepath = os.path.join(path, f'drag_angle-reynolds{reynolds}.jpg')
-            plt.savefig(savepath, bbox_inches='tight')
+    #     # Drags plot
+    #     plt.figure(figsize=figsize)
+    #     plt.scatter(angles, drags)
+    #     plt.xlabel('Angle [deg]')
+    #     plt.ylabel('Drag [N]')
+    #     plt.title(f'Time-averaged drags according to angle for E={reynolds}')
+    #     if show: plt.show()
+    #     if save:
+    #         if not path: path = os.path.join(OUTPUT_PATH, f'_avgs_angle-reynolds{reynolds}')
+    #         try: os.makedirs(path)
+    #         except: pass
+    #         savepath = os.path.join(path, f'drag_angle-reynolds{reynolds}.jpg')
+    #         plt.savefig(savepath, bbox_inches='tight')
 
 
 """
